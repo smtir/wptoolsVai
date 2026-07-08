@@ -3130,12 +3130,23 @@ class WpToolkit {
      * str_replace to every scalar, then re-serialize — so serialized arrays/objects
      * stay valid after the replacement. Falls back to a plain replace for
      * non-serialized values.
+     *
+     * Serialized OBJECTS of classes that are not defined in this standalone script
+     * (e.g. WooCommerce / ActionScheduler_IntervalSchedule) are left untouched:
+     * unserializing them yields an __PHP_Incomplete_Class that cannot be modified
+     * (fatal), and a raw string replace would corrupt the serialized length
+     * prefixes. Skipping them is the safe choice.
      */
     public static function recursiveReplace($data, $search, $replace, &$changed) {
-        // If it's a serialized string, unserialize, recurse, re-serialize.
+        // If it's a serialized string, unserialize (without instantiating any
+        // classes), recurse, then re-serialize.
         if (is_string($data)) {
-            $unser = @unserialize($data);
+            $unser = @unserialize($data, ['allowed_classes' => false]);
             if ($unser !== false || $data === 'b:0;') {
+                // Leave serialized objects (or structures containing them) as-is.
+                if (is_object($unser) || self::containsIncomplete($unser)) {
+                    return $data;
+                }
                 $inner = self::recursiveReplace($unser, $search, $replace, $changed);
                 return serialize($inner);
             }
@@ -3151,12 +3162,21 @@ class WpToolkit {
             return $out;
         }
         if (is_object($data)) {
-            foreach ($data as $k => $v) {
-                $data->$k = self::recursiveReplace($v, $search, $replace, $changed);
-            }
+            // Reached only for objects PHP could instantiate; skip to be safe.
             return $data;
         }
         return $data; // int, float, bool, null — nothing to replace
+    }
+
+    /** True if $data is, or contains, an object of an undefined class. */
+    private static function containsIncomplete($data) {
+        if ($data instanceof __PHP_Incomplete_Class) return true;
+        if (is_array($data)) {
+            foreach ($data as $v) {
+                if (self::containsIncomplete($v)) return true;
+            }
+        }
+        return false;
     }
 
     /**
