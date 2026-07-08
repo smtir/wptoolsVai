@@ -3256,39 +3256,47 @@ class WpToolkit {
      */
     public static function wpHashPassword($password) {
         $itoa64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-        $salt = '';
+        // 6 random bytes of salt material.
         $random = '';
         for ($i = 0; $i < 6; $i++) $random .= chr(random_int(0, 255));
         $count_log2 = 8;
-        $setting = '$P$' . $itoa64[$count_log2 + 5];
+        // Build the setting string exactly like WordPress's PasswordHash::HashPassword.
+        $setting = '$P$' . $itoa64[$count_log2 + 5] . self::phpassEncode64($random, 6, $itoa64);
+        return self::phpassCryptPrivate($password, $setting, $itoa64);
+    }
 
-        $sixbits = function($input) use ($itoa64) {
-            $output = '';
-            $i = 0;
-            $count = strlen($input);
-            do {
-                $value = ord($input[$i++]);
-                $output .= $itoa64[$value & 0x3f];
-                if ($i < $count) $value |= ord($input[$i]) << 8;
-                $output .= $itoa64[($value >> 6) & 0x3f];
-                if ($i++ >= $count) break;
-                if ($i < $count) $value |= ord($input[$i]) << 16;
-                $output .= $itoa64[($value >> 12) & 0x3f];
-                if ($i++ >= $count) break;
-                $output .= $itoa64[($value >> 18) & 0x3f];
-            } while ($i < $count);
-            return $output;
-        };
+    /** phpass base-64 encoder (identical to wp-includes/class-phpass.php::encode64). */
+    private static function phpassEncode64($input, $count, $itoa64) {
+        $output = '';
+        $i = 0;
+        do {
+            $value = ord($input[$i++]);
+            $output .= $itoa64[$value & 0x3f];
+            if ($i < $count) $value |= ord($input[$i]) << 8;
+            $output .= $itoa64[($value >> 6) & 0x3f];
+            if ($i++ >= $count) break;
+            if ($i < $count) $value |= ord($input[$i]) << 16;
+            $output .= $itoa64[($value >> 12) & 0x3f];
+            if ($i++ >= $count) break;
+            $output .= $itoa64[($value >> 18) & 0x3f];
+        } while ($i < $count);
+        return $output;
+    }
 
-        $setting .= $sixbits(substr($random, 0, 6));
-        $salt = substr($setting, 4, 8);
+    /** phpass private hashing (identical to class-phpass.php::crypt_private). */
+    private static function phpassCryptPrivate($password, $setting, $itoa64) {
+        $output = '*0';
+        if (substr($setting, 0, 3) !== '$P$' && substr($setting, 0, 3) !== '$H$') return $output;
+        $count_log2 = strpos($itoa64, $setting[3]);
+        if ($count_log2 < 7 || $count_log2 > 30) return $output;
         $count = 1 << $count_log2;
+        $salt = substr($setting, 4, 8);
+        if (strlen($salt) !== 8) return $output;
         $hash = md5($salt . $password, true);
         do {
             $hash = md5($hash . $password, true);
         } while (--$count);
-
-        return substr($setting, 0, 12) . $sixbits($hash);
+        return substr($setting, 0, 12) . self::phpassEncode64($hash, 16, $itoa64);
     }
 
     /** Reset an existing user's password. */
@@ -3334,6 +3342,57 @@ class WpToolkit {
         $this->wpdb->query("INSERT INTO `{$metaT}` (user_id, meta_key, meta_value)
             VALUES ({$userId}, '" . $this->esc($levelKey) . "', '10')");
         return $userId;
+    }
+
+    /** Count total administrators (used to prevent deleting the last one). */
+    public function countAdmins() {
+        return count($this->listAdmins());
+    }
+
+    /**
+     * Delete a user and their usermeta. Posts owned by the user are reassigned to
+     * $reassignTo (another admin) so content is not orphaned. Refuses to delete
+     * the last remaining administrator.
+     */
+    public function deleteUser($userId, $reassignTo = 0) {
+        $userId = (int)$userId;
+        $reassignTo = (int)$reassignTo;
+        $usersT = $this->tablePrefix . 'users';
+        $metaT  = $this->tablePrefix . 'usermeta';
+        $postsT = $this->tablePrefix . 'posts';
+
+        // Confirm the user exists.
+        $res = $this->wpdb->query("SELECT ID FROM `{$usersT}` WHERE ID = {$userId} LIMIT 1");
+        if (!$res || $res->num_rows === 0) {
+            throw new FileOperationException('User not found.');
+        }
+
+        // Never delete the last administrator.
+        $admins = $this->listAdmins();
+        $adminIds = array_map(function($a){ return (int)$a['id']; }, $admins);
+        if (in_array($userId, $adminIds, true) && count($adminIds) <= 1) {
+            throw new FileOperationException('Cannot delete the only remaining administrator.');
+        }
+
+        // Reassign or delete the user's content.
+        if ($reassignTo > 0 && $reassignTo !== $userId) {
+            $this->wpdb->query("UPDATE `{$postsT}` SET post_author = {$reassignTo} WHERE post_author = {$userId}");
+        } else {
+            // No reassignment target: remove the user's posts and their meta.
+            $ids = [];
+            $r = $this->wpdb->query("SELECT ID FROM `{$postsT}` WHERE post_author = {$userId}");
+            if ($r) { while ($row = $r->fetch_row()) $ids[] = (int)$row[0]; }
+            if (!empty($ids)) {
+                $list = implode(',', $ids);
+                $this->wpdb->query("DELETE FROM `{$this->tablePrefix}postmeta` WHERE post_id IN ({$list})");
+                $this->wpdb->query("DELETE FROM `{$postsT}` WHERE ID IN ({$list})");
+            }
+        }
+
+        // Remove the user and their metadata.
+        $this->wpdb->query("DELETE FROM `{$metaT}` WHERE user_id = {$userId}");
+        $this->wpdb->query("DELETE FROM `{$usersT}` WHERE ID = {$userId} LIMIT 1");
+        return true;
     }
 
     /* ───────────────────────── CORE INTEGRITY ───────────────────────── */
@@ -3561,6 +3620,7 @@ class DeleteController {
             ['method'=>'GET',  'param'=>'wp_list_admins',          'value'=>'1','handler'=>'handleWpListAdmins'],
             ['method'=>'POST','param'=>'wp_reset_password',        'value'=>'1','handler'=>'handleWpResetPassword'],
             ['method'=>'POST','param'=>'wp_create_admin',          'value'=>'1','handler'=>'handleWpCreateAdmin'],
+            ['method'=>'POST','param'=>'wp_delete_user',           'value'=>'1','handler'=>'handleWpDeleteUser'],
             // Database export routes
             ['method'=>'POST','param'=>'db_export_start',          'value'=>'1','handler'=>'handleDbExportStart'],
             ['method'=>'POST','param'=>'db_export_process',        'value'=>'1','handler'=>'handleDbExportProcess'],
@@ -5835,6 +5895,21 @@ class DeleteController {
                 'message' => "Administrator '{$login}' created (ID {$newId})"]);
         } catch (Exception $e) {
             SecurityHelper::jsonError('Create failed: ' . $e->getMessage());
+        }
+    }
+
+    private function handleWpDeleteUser() {
+        try {
+            $userId = (int)($_POST['user_id'] ?? 0);
+            $reassignTo = (int)($_POST['reassign_to'] ?? 0);
+            if ($userId <= 0) SecurityHelper::jsonError('Invalid user ID');
+            $kit = new WpToolkit($this->baseDir);
+            $kit->deleteUser($userId, $reassignTo);
+            $kit->close();
+            Logger::logAction('WP user deleted', ['user_id' => $userId, 'reassign_to' => $reassignTo]);
+            SecurityHelper::jsonResponse(['success' => true, 'message' => "User #{$userId} deleted"]);
+        } catch (Exception $e) {
+            SecurityHelper::jsonError('Delete failed: ' . $e->getMessage());
         }
     }
 
@@ -11225,10 +11300,16 @@ if (rand(1, 10) === 1) {
                         + '<div><strong>' + escapeHtml(a.login) + '</strong> '
                         + '<span class="badge bg-secondary">ID ' + a.id + '</span><br>'
                         + '<small class="text-muted">' + escapeHtml(a.email) + ' · ' + escapeHtml(a.registered) + '</small></div>'
+                        + '<div class="d-flex gap-2 flex-wrap">'
                         + '<button class="btn btn-sm btn-warning wpResetPwBtn" data-id="' + a.id + '" data-login="' + escapeHtml(a.login) + '">'
-                        + '<i class="fas fa-key"></i> Reset Password</button></div>';
+                        + '<i class="fas fa-key"></i> Reset Password</button>'
+                        + '<button class="btn btn-sm btn-danger wpDeleteUserBtn" data-id="' + a.id + '" data-login="' + escapeHtml(a.login) + '">'
+                        + '<i class="fas fa-user-slash"></i> Delete</button>'
+                        + '</div></div>';
                 });
                 html += '</div>';
+                // Keep the current admin list available for the delete dialog.
+                window._wpAdmins = admins;
                 $('#wpAdminsList').html(html);
             }).fail(() => $('#wpAdminsList').html('<div class="alert alert-danger">Failed to load admins</div>'));
         });
@@ -11249,6 +11330,34 @@ if (rand(1, 10) === 1) {
                     if (r.error) { showNotification(r.error, 'error'); return; }
                     showNotification(r.message || 'Password reset', 'success');
                 }).fail(() => showNotification('Reset failed', 'error'));
+            });
+        });
+
+        $(document).on('click', '.wpDeleteUserBtn', function () {
+            const id = $(this).data('id');
+            const login = $(this).data('login');
+            const admins = window._wpAdmins || [];
+            // Build a "reassign content to" dropdown of the other admins.
+            let opts = '<option value="0">— Delete their posts too —</option>';
+            admins.filter(a => a.id !== id).forEach(a => {
+                opts += '<option value="' + a.id + '">' + escapeHtml(a.login) + ' (ID ' + a.id + ')</option>';
+            });
+            Swal.fire({
+                title: 'Delete "' + login + '"?',
+                html: 'This permanently removes the user.<br>Reassign their content to:'
+                    + '<select id="reassignTo" class="swal2-select" style="display:block;margin:12px auto;">' + opts + '</select>',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Delete user',
+                confirmButtonColor: '#d33',
+                preConfirm: () => document.getElementById('reassignTo').value
+            }).then(res => {
+                if (!res.isConfirmed) return;
+                $.post('?wp_delete_user=1', { user_id: id, reassign_to: res.value }, function (r) {
+                    if (r.error) { showNotification(r.error, 'error'); return; }
+                    showNotification(r.message || 'User deleted', 'success');
+                    $('#wpListAdminsBtn').click();
+                }).fail(() => showNotification('Delete failed', 'error'));
             });
         });
 
