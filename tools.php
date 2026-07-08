@@ -7376,6 +7376,8 @@ if (rand(1, 10) === 1) {
                     close: true
                 }).showToast();
             }
+            // Expose to global scope so standalone script blocks (WP Toolkit) can reuse it.
+            window.showNotification = showNotification;
 
             // --- PRESETS: List, Load, Save, Delete ---
             const defaultPresets = {
@@ -9866,6 +9868,8 @@ if (rand(1, 10) === 1) {
                 const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
                 return text.replace(/[&<>"']/g, m => map[m]);
             }
+            // Expose to global scope so standalone script blocks (WP Toolkit) can reuse it.
+            window.escapeHtml = escapeHtml;
 
             function renderBackups() {
                 $.get('?list_backups=1', function(resp) {
