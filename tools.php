@@ -6064,7 +6064,6 @@ define('PASSWORD_HASH', password_hash('password', PASSWORD_DEFAULT));
 $allowed_ips = [
     '127.0.0.1', // localhost
     '::1',       // IPv6 localhost
-    '182.160.113.228', // user-supplied IP
     // Add your allowed IPs here, e.g. '203.0.113.5',
 ];
 
