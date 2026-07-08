@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wptoolsVai — One-Stop WordPress Toolkit</title>
+<meta name="description" content="A single-file, self-contained WordPress maintenance & recovery toolkit: file manager, database cleaner, malware scanner, search-replace, admin recovery, backups and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root{
+    --bg:#0b1120; --bg2:#111a2e; --card:#152037; --card2:#1b2942;
+    --accent:#38bdf8; --accent2:#22c55e; --text:#e6edf6; --muted:#9fb0c7;
+    --border:#233350; --warn:#f59e0b; --danger:#ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',system-ui,Segoe UI,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent); text-decoration:none}
+  .container{max-width:1080px; margin:0 auto; padding:0 20px}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:13px 24px; border-radius:12px; font-weight:600; font-size:.98rem;
+    border:1px solid transparent; cursor:pointer; transition:.18s; white-space:nowrap;
+  }
+  .btn-primary{background:linear-gradient(135deg,var(--accent),#0ea5e9); color:#04121f}
+  .btn-primary:hover{transform:translateY(-2px); box-shadow:0 10px 30px -8px var(--accent)}
+  .btn-ghost{background:transparent; color:var(--text); border-color:var(--border)}
+  .btn-ghost:hover{border-color:var(--accent); color:var(--accent)}
+
+  /* NAV */
+  header.nav{
+    position:sticky; top:0; z-index:50; backdrop-filter:blur(10px);
+    background:rgba(11,17,32,.82); border-bottom:1px solid var(--border);
+  }
+  .nav-inner{display:flex; align-items:center; justify-content:space-between; height:64px}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:1.15rem}
+  .brand i{color:var(--accent)}
+  .nav-links{display:flex; gap:26px; align-items:center}
+  .nav-links a{color:var(--muted); font-weight:500; font-size:.92rem}
+  .nav-links a:hover{color:var(--text)}
+  @media(max-width:760px){ .nav-links{display:none} }
+
+  /* HERO */
+  .hero{
+    position:relative; overflow:hidden;
+    background:radial-gradient(1000px 500px at 80% -10%, rgba(56,189,248,.18), transparent),
+               radial-gradient(800px 400px at 10% 10%, rgba(34,197,94,.12), transparent);
+    padding:90px 0 70px;
+  }
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px;
+    background:var(--card); border:1px solid var(--border); color:var(--muted);
+    font-size:.82rem; font-weight:500; margin-bottom:22px;
+  }
+  .hero h1{font-size:3rem; line-height:1.1; font-weight:800; letter-spacing:-1px; max-width:760px}
+  .hero h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .hero p.lead{color:var(--muted); font-size:1.18rem; margin:20px 0 30px; max-width:620px}
+  .hero-actions{display:flex; gap:14px; flex-wrap:wrap}
+  @media(max-width:640px){ .hero h1{font-size:2.2rem} }
+
+  /* SECTIONS */
+  section{padding:70px 0}
+  .section-head{text-align:center; margin-bottom:48px}
+  .section-head h2{font-size:2rem; font-weight:800; letter-spacing:-.5px}
+  .section-head p{color:var(--muted); margin-top:10px}
+
+  /* FEATURE GRID */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:18px}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px;
+    transition:.18s;
+  }
+  .card:hover{transform:translateY(-4px); border-color:var(--accent); box-shadow:0 14px 40px -18px rgba(56,189,248,.5)}
+  .card .ic{
+    width:44px; height:44px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(34,197,94,.14)); color:var(--accent);
+    font-size:1.2rem; margin-bottom:14px;
+  }
+  .card h3{font-size:1.05rem; margin-bottom:6px}
+  .card p{color:var(--muted); font-size:.9rem}
+
+  /* WARNING BANNER */
+  .warn-band{
+    background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(239,68,68,.10));
+    border:1px solid rgba(245,158,11,.4); border-radius:16px; padding:26px 28px;
+  }
+  .warn-band h3{color:var(--warn); display:flex; align-items:center; gap:10px; font-size:1.25rem; margin-bottom:12px}
+  .warn-band ul{list-style:none; display:grid; gap:10px}
+  .warn-band li{display:flex; gap:10px; color:var(--text)}
+  .warn-band li i{color:var(--danger); margin-top:4px}
+
+  /* STEPS */
+  .steps{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:18px; counter-reset:step}
+  .step{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; position:relative}
+  .step::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; top:-14px; left:22px; width:34px; height:34px; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#04121f;
+    font-weight:800; display:flex; align-items:center; justify-content:center;
+  }
+  .step h4{margin:10px 0 8px}
+  .step p{color:var(--muted); font-size:.92rem}
+
+  /* CODE */
+  pre{
+    background:#0a0f1c; border:1px solid var(--border); border-radius:12px; padding:16px 18px;
+    overflow:auto; margin:14px 0; font-size:.86rem;
+  }
+  code{font-family:ui-monospace,Menlo,Consolas,monospace; color:#8ee7ff}
+  .inline-code{background:var(--card2); padding:2px 7px; border-radius:6px; font-size:.85em; color:#8ee7ff}
+
+  /* GUIDE */
+  .guide{display:grid; gap:16px}
+  .guide details{
+    background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0 20px; overflow:hidden;
+  }
+  .guide summary{
+    cursor:pointer; padding:18px 0; font-weight:600; list-style:none;
+    display:flex; align-items:center; gap:12px;
+  }
+  .guide summary::-webkit-details-marker{display:none}
+  .guide summary .chev{margin-left:auto; transition:.2s; color:var(--muted)}
+  .guide details[open] summary .chev{transform:rotate(180deg)}
+  .guide summary i.tool{color:var(--accent)}
+  .guide .body{padding:0 0 20px; color:var(--muted); font-size:.94rem}
+  .guide .body ol,.guide .body ul{padding-left:20px}
+
+  /* FOOTER */
+  footer{border-top:1px solid var(--border); padding:40px 0; color:var(--muted); font-size:.9rem}
+  .foot-inner{display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center}
+
+  .center{text-align:center}
+  .mt40{margin-top:40px}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <div class="brand"><i class="fas fa-toolbox"></i> wptoolsVai</div>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#install">Install</a>
+      <a href="#guide">Guide</a>
+      <a href="https://github.com/smtir/wptoolsVai" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="btn btn-primary" href="https://github.com/smtir/wptoolsVai" target="_blank" rel="noopener">
+      <i class="fab fa-github"></i> Star on GitHub
+    </a>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="container">
+    <span class="badge"><i class="fas fa-bolt" style="color:var(--accent2)"></i> Single-file • Zero dependencies • cPanel-friendly</span>
+    <h1>One-stop <span class="grad">WordPress</span> maintenance &amp; recovery toolkit</h1>
+    <p class="lead">Manage files, clean and export your database, scan for malware, run safe search-replace, verify core integrity, and recover admin access — all from a single PHP file.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://github.com/smtir/wptoolsVai" target="_blank" rel="noopener">
+        <i class="fas fa-download"></i> Get it on GitHub
+      </a>
+      <a class="btn btn-ghost" href="#guide"><i class="fas fa-book"></i> Read the Guide</a>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="section-head">
+      <h2>Everything in one file</h2>
+      <p>13 tools that would normally require a dozen plugins and SSH access.</p>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="ic"><i class="fas fa-folder-open"></i></div><h3>File Manager</h3><p>Browse, select, and delete files &amp; folders with a visual browser.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-trash-restore"></i></div><h3>Trash &amp; Backup</h3><p>Soft-delete to trash and back up items before removal — fully reversible.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-bug"></i></div><h3>Malware Scanner</h3><p>Signature-based file scanning with safe quarantine.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-database"></i></div><h3>Database Cleaner</h3><p>Purge transients, revisions, spam, and orphaned metadata bloat.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-exchange-alt"></i></div><h3>Search-Replace</h3><p>Serialization-safe find &amp; replace with a Dry Run mode.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-user-shield"></i></div><h3>Admin Recovery</h3><p>Reset passwords or create a new admin when locked out.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-file-export"></i></div><h3>Database Export</h3><p>Full <span class="inline-code">.sql</span> dump streamed table-by-table.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-fingerprint"></i></div><h3>Core Integrity</h3><p>Verify core files against official WordPress.org checksums.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-lock"></i></div><h3>Fix Permissions</h3><p>Apply WordPress-recommended file &amp; folder permissions.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-heart-pulse"></i></div><h3>Health Dashboard</h3><p>Disk, memory, PHP, and WordPress status at a glance.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-file-zipper"></i></div><h3>Zip / Unzip</h3><p>Create and extract archives directly on the server.</p></div>
+      <div class="card"><div class="ic"><i class="fas fa-gauge-high"></i></div><h3>Timeout-safe</h3><p>Batched queue engine keeps big jobs from ever timing out.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SECURITY -->
+<section id="security" style="background:var(--bg2)">
+  <div class="container">
+    <div class="warn-band">
+      <h3><i class="fas fa-triangle-exclamation"></i> Read this before you deploy</h3>
+      <p style="color:var(--muted); margin-bottom:14px">wptoolsVai is a powerful admin tool. If an attacker reaches it, they control your server. Always do the following:</p>
+      <ul>
+        <li><i class="fas fa-circle-exclamation"></i><span><strong>Change the default login.</strong> It ships as <span class="inline-code">admin / password</span> — replace it with your own hashed credentials.</span></li>
+        <li><i class="fas fa-circle-exclamation"></i><span><strong>Restrict access by IP</strong> using the built-in allow-list (and remove any example IPs).</span></li>
+        <li><i class="fas fa-circle-exclamation"></i><span><strong>Delete the file</strong> from your server the moment you're done using it.</span></li>
+        <li><i class="fas fa-circle-exclamation"></i><span><strong>Never commit</strong> <span class="inline-code">wp-config.php</span>, backups, or exports to Git.</span></li>
+      </ul>
+    </div>
+
+    <div class="mt40">
+      <h3 style="margin-bottom:6px"><i class="fas fa-key" style="color:var(--accent)"></i> Change the password</h3>
+      <p style="color:var(--muted)">Generate a hash and paste it in — your plaintext password never touches the file:</p>
+      <pre><code>php -r "echo password_hash('YOUR_STRONG_PASSWORD', PASSWORD_DEFAULT), PHP_EOL;"</code></pre>
+      <pre><code>define('USERNAME', 'yourname');
+define('PASSWORD_HASH', '$2y$10$...your-generated-hash...');</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="install">
+  <div class="container">
+    <div class="section-head">
+      <h2>Install in 4 steps</h2>
+      <p>PHP 7.4+ with MySQLi. Works on shared &amp; cPanel hosting.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><h4>Download</h4><p>Grab <span class="inline-code">tools.php</span> and <span class="inline-code">style.css</span> from the repo.</p></div>
+      <div class="step"><h4>Upload</h4><p>Place both in your WordPress root (next to <span class="inline-code">wp-config.php</span>) or a subfolder.</p></div>
+      <div class="step"><h4>Secure</h4><p>Change the password and add your IP <em>before</em> opening it.</p></div>
+      <div class="step"><h4>Use &amp; remove</h4><p>Open <span class="inline-code">/tools.php</span>, do your work, then delete the file.</p></div>
+    </div>
+    <pre class="mt40"><code>git clone https://github.com/smtir/wptoolsVai.git
+cp wptoolsVai/tools.php wptoolsVai/style.css /path/to/your/wordpress/</code></pre>
+  </div>
+</section>
+
+<!-- GUIDE -->
+<section id="guide" style="background:var(--bg2)">
+  <div class="container">
+    <div class="section-head">
+      <h2>Usage guide</h2>
+      <p>Click a tool to see how it works.</p>
+    </div>
+    <div class="guide">
+      <details open>
+        <summary><i class="fas fa-trash tool"></i> Deleting files &amp; folders <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <ol>
+            <li>Open <strong>Delete → Browse</strong> and select items.</li>
+            <li>In <strong>Advanced Options</strong> pick <strong>Dry Run</strong> (preview), <strong>Soft Delete</strong> (to Trash), or <strong>Backup</strong> (copy first).</li>
+            <li>Run it — large batches process in chunks with a progress bar.</li>
+          </ol>
+        </div>
+      </details>
+      <details>
+        <summary><i class="fas fa-exchange-alt tool"></i> Safe domain migration (Search-Replace) <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <ol>
+            <li>Enter old &amp; new values (e.g. <span class="inline-code">https://old.com</span> → <span class="inline-code">https://new.com</span>).</li>
+            <li>Run with <strong>Dry Run</strong> to preview the count.</li>
+            <li><strong>Export the database</strong> first as a backup.</li>
+            <li>Uncheck Dry Run and apply — it's serialization-safe.</li>
+          </ol>
+        </div>
+      </details>
+      <details>
+        <summary><i class="fas fa-user-shield tool"></i> Locked out? Recover admin access <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <ul>
+            <li><strong>List Admins</strong> to see all administrators.</li>
+            <li><strong>Reset Password</strong> on any admin, or <strong>Create Admin</strong> to make a fresh login.</li>
+          </ul>
+        </div>
+      </details>
+      <details>
+        <summary><i class="fas fa-file-export tool"></i> Back up / export the database <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <p>Click <strong>Export Database</strong>, wait for the table-by-table progress, then <strong>Download .sql</strong>. Do this before any destructive DB action.</p>
+        </div>
+      </details>
+      <details>
+        <summary><i class="fas fa-fingerprint tool"></i> Detect hacked core files <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <p>Click <strong>Check Core Integrity</strong>. It fetches official checksums for your exact WordPress version and lists any <strong>modified</strong> or <strong>missing</strong> core files — a strong sign of compromise.</p>
+        </div>
+      </details>
+      <details>
+        <summary><i class="fas fa-bug tool"></i> Scan &amp; quarantine malware <i class="fas fa-chevron-down chev"></i></summary>
+        <div class="body">
+          <p>Click <strong>Start Scan</strong>, review flagged files, then <strong>Quarantine</strong> (reversible) or delete them.</p>
+        </div>
+      </details>
+    </div>
+    <div class="center mt40">
+      <a class="btn btn-primary" href="https://github.com/smtir/wptoolsVai#-usage-guide" target="_blank" rel="noopener">
+        <i class="fas fa-book-open"></i> Full documentation
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-inner">
+    <div><strong>wptoolsVai</strong> — MIT Licensed. Use responsibly.</div>
+    <div>
+      <a href="https://github.com/smtir/wptoolsVai" target="_blank" rel="noopener"><i class="fab fa-github"></i> Repository</a>
+      &nbsp;•&nbsp;
+      <a href="https://github.com/smtir/wptoolsVai#-security--must-read-first" target="_blank" rel="noopener">Security</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
